@@ -6,8 +6,8 @@
 
 ## 🌟 주요 기능
 
-1. **매일 한국 시간 오전 9시 자동 발행**
-   - GitHub Actions Cron 스케줄러(`0 0 * * *`)를 통해 서버나 PC를 켜둘 필요 없이 클라우드에서 자동 실행됩니다.
+1. **매일 한국 시간 오전 10시 자동 발행**
+   - GitHub Actions Cron 스케줄러(`0 1 * * *`)를 통해 서버나 PC를 켜둘 필요 없이 클라우드에서 자동 실행됩니다.
    - 필요 시 GitHub 웹 화면에서 **[Run workflow]** 버튼을 눌러 즉시 글을 발행할 수도 있습니다.
 2. **엄선된 30개+ 실전 한달살기 큐(`topics_queue.json`) 탑재**
    - 동남아, 일본·대만, 유럽, 금융/환전/카드, 준비/보험 등 5개 핵심 카테고리에 최적화된 주제가 준비되어 있습니다.
@@ -90,7 +90,7 @@ GitHub Actions가 발행 이력을 자동으로 저장소에 다시 커밋하려
 tripgaja.co.kr/
 ├── .github/
 │   └── workflows/
-│       └── daily_post.yml      # 매일 09:00 KST 자동 실행 워크플로우
+│       └── daily_post.yml      # 매일 10:00 KST 자동 실행 워크플로우
 ├── data/
 │   ├── topics_queue.json       # 발행 대기 중인 주제 목록 (30개+)
 │   └── published_history.json  # 발행 완료된 글 목록
