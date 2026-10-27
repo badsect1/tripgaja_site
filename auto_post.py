@@ -24,6 +24,7 @@ WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD", "dg6i NgEG Jp0q yNTr Ny2v fZiL")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 AI_PROVIDER = os.getenv("AI_PROVIDER", "auto").lower()
 
 CATEGORY_MAP = {
@@ -138,11 +139,17 @@ def call_ai(prompt, system_prompt=""):
     if (AI_PROVIDER in ("auto", "gemini")) and GEMINI_API_KEY:
         full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
 
+        # 모델 후보 리스트: GEMINI_MODEL (기본: gemini-3.5-flash-lite) 우선 적용
+        candidate_models = [GEMINI_MODEL]
+        for m in ["gemini-3.5-flash-lite", "gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"]:
+            if m not in candidate_models:
+                candidate_models.append(m)
+
         # 2-1. 최신 공식 SDK (google-genai) 우선 시도
         try:
             from google import genai
             client = genai.Client(api_key=GEMINI_API_KEY)
-            for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+            for model_name in candidate_models:
                 try:
                     response = client.models.generate_content(
                         model=model_name,
@@ -161,7 +168,7 @@ def call_ai(prompt, system_prompt=""):
         try:
             import google.generativeai as legacy_genai
             legacy_genai.configure(api_key=GEMINI_API_KEY)
-            for model_name in ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-pro"]:
+            for model_name in candidate_models + ["gemini-1.5-flash-latest", "gemini-pro"]:
                 try:
                     m = legacy_genai.GenerativeModel(model_name)
                     response = m.generate_content(full_prompt)
