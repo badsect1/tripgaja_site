@@ -62,16 +62,23 @@ def get_next_topic():
     history = load_json(HISTORY_FILE, [])
 
     if queue:
-        topic_item = queue.pop(0)
-        save_json(QUEUE_FILE, queue)
-        print(f"[+] 큐에서 주제 추출: {topic_item.get('topic')}")
-        return topic_item
+        topic_item = queue[0]
+        print(f"[+] 큐에서 주제 확인: {topic_item.get('topic')}")
+        return topic_item, True
 
     # 큐가 비어있을 경우 AI로 새 주제 자동 생성
     print("[*] 큐가 비어있어 새로운 주제를 자동 생성합니다...")
     published_titles = [h.get("title", "") for h in history[-20:]]
     new_topic = generate_dynamic_topic(published_titles)
-    return new_topic
+    return new_topic, False
+
+
+def mark_topic_published_in_queue():
+    queue = load_json(QUEUE_FILE, [])
+    if queue:
+        removed = queue.pop(0)
+        save_json(QUEUE_FILE, queue)
+        print(f"[+] 큐에서 주제 완료 처리: {removed.get('topic')}")
 
 
 def generate_dynamic_topic(recent_titles):
@@ -129,15 +136,41 @@ def call_ai(prompt, system_prompt=""):
 
     # 2. Gemini 호출 시도
     if (AI_PROVIDER in ("auto", "gemini")) and GEMINI_API_KEY:
+        full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+
+        # 2-1. 최신 공식 SDK (google-genai) 우선 시도
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=GEMINI_API_KEY)
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-            response = model.generate_content(full_prompt)
-            return response.text.strip()
+            from google import genai
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=full_prompt
+                    )
+                    if response and response.text:
+                        return response.text.strip()
+                except Exception as m_err:
+                    print(f"[*] google.genai ({model_name}) 시도 실패: {m_err}")
+        except ImportError:
+            pass
         except Exception as e:
-            print(f"[!] Gemini API 호출 오류: {e}")
+            print(f"[!] google.genai 초기화/호출 오류: {e}")
+
+        # 2-2. 기존 google-generativeai 라이브러리 fallback 시도
+        try:
+            import google.generativeai as legacy_genai
+            legacy_genai.configure(api_key=GEMINI_API_KEY)
+            for model_name in ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-pro"]:
+                try:
+                    m = legacy_genai.GenerativeModel(model_name)
+                    response = m.generate_content(full_prompt)
+                    if response and response.text:
+                        return response.text.strip()
+                except Exception as lm_err:
+                    print(f"[*] google-generativeai ({model_name}) 시도 실패: {lm_err}")
+        except Exception as e:
+            print(f"[!] google-generativeai 호출 오류: {e}")
 
     # 3. API 키가 없을 때 기본 템플릿 반환
     print("[!] 유효한 AI API Key가 없습니다. 기본 템플릿 생성기로 대체합니다.")
@@ -370,7 +403,7 @@ def main():
     print("=" * 60)
 
     # 1. 포스팅할 주제 선정
-    topic_item = get_next_topic()
+    topic_item, is_from_queue = get_next_topic()
     category = topic_item.get("category", "동남아 한달살기")
     print(f"📌 주제: {topic_item.get('topic')}")
     print(f"📁 카테고리: {category}")
@@ -386,6 +419,10 @@ def main():
     published_info = publish_to_wordpress(article_data, category)
 
     if published_info:
+        # 발행 성공 시에만 큐에서 해당 항목을 완료 처리(제거)
+        if is_from_queue:
+            mark_topic_published_in_queue()
+
         # 4. 발행 이력 기록
         history = load_json(HISTORY_FILE, [])
         history.insert(0, published_info)
@@ -393,7 +430,7 @@ def main():
         print(f"[✔] 이력 파일 갱신 완료: 총 {len(history)}개 포스팅 기록")
         print("🎉 자동 포스팅 완료!")
     else:
-        print("[✖] 포스팅 발행 실패. 큐 복구를 위해 확인이 필요합니다.")
+        print("[✖] 포스팅 발행 실패. 큐 항목은 유실되지 않고 안전하게 유지됩니다.")
         sys.exit(1)
 
 
